@@ -101,11 +101,36 @@ fn skip_ai(speed: f32, n_players: u32) -> BinResult<()> {
             && (cheats == 0 || cheats == 1)
         {
             reader.seek(SeekFrom::Current(-60))?;
-            return Ok(());
+            // The speed alone is a weak signature: Fast (2.0) is the bytes 00 00 00 40, which
+            // also occur inside the AI data. Accept the candidate only if the replay block and
+            // the map size that follow it parse to something plausible.
+            let start = reader.stream_position()?;
+            if replay_follows(reader, endian) {
+                reader.seek(SeekFrom::Start(start))?;
+                return Ok(());
+            }
+            reader.seek(SeekFrom::Start(start + 60))?;
         }
 
         let next_byte: u8 = reader.read_type(endian)?;
         window.copy_within(1..60, 0);
         window[59] = next_byte;
     }
+}
+
+/// Whether a `Replay` block followed by a plausible map size can be read from the current
+/// position: square (AoE2 maps are), 1 to 1000 tiles a side, under 1000 zones. False matches
+/// seen in the AI data read as 0x768, 12800x0 and 512x768.
+fn replay_follows<R: binrw::io::Read + binrw::io::Seek>(
+    reader: &mut R,
+    endian: binrw::Endian,
+) -> bool {
+    let mut check = || -> BinResult<bool> {
+        let _: super::Replay = reader.read_type(endian)?;
+        let size_x: u32 = reader.read_type(endian)?;
+        let size_y: u32 = reader.read_type(endian)?;
+        let zones: u32 = reader.read_type(endian)?;
+        Ok(size_x == size_y && (1..=1000).contains(&size_x) && zones < 1000)
+    };
+    check().unwrap_or(false)
 }

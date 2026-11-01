@@ -55,7 +55,9 @@ fn test_parse_de_sync_player_stats() {
             assert!(cs.player_stats[0].displayable_objects > 0);
             assert!(cs.player_stats[1].displayable_objects > 0);
 
-            let current_time = cs.current_time_ms.expect("DE sync should have current_time_ms");
+            let current_time = cs
+                .current_time_ms
+                .expect("DE sync should have current_time_ms");
             assert!(current_time >= last_time);
             last_time = current_time;
 
@@ -68,3 +70,13 @@ fn test_parse_de_sync_player_stats() {
     assert_eq!(checksum_count, 352);
 }
 
+#[test]
+fn it_parses_recs_with_ai_at_fast_speed() {
+    // Fast (2.0) is the bytes 00 00 00 40, which also occur inside the AI data the header
+    // parser skips; matching on the speed alone stopped the skip too early.
+    let path = std::path::PathBuf::from("replay-ai-fast.aoe2record");
+    let savegame = Savegame::from_file(&path).unwrap();
+    let header = &savegame.chapters[0].zheader;
+    assert_eq!(header.game_settings.speed, 2.0);
+    assert_eq!((header.map_info.size_x, header.map_info.size_y), (120, 120));
+}
