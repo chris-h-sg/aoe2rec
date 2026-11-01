@@ -278,6 +278,18 @@ fn test_parse_campaign_replay() {
 }
 
 #[test]
+fn test_parse_ai_fast_speed_replay() {
+    // Fast speed (2.0) is the bytes 00 00 00 40, which also occur inside the AI data the
+    // header parser skips; matching on the speed alone stopped the skip too early.
+    let path = Path::new("replay-ai-fast.aoe2record");
+    let save = Savegame::from_file(path).unwrap();
+    assert_eq!(save.chapters[0].zheader.game_settings.speed, 2.0);
+    assert_eq!(save.chapters[0].zheader.map_info.size_x, 120);
+    assert_eq!(save.operations().count(), 6807);
+    assert_eq!(save.get_duration(), 70946);
+}
+
+#[test]
 fn test_parse_synthetic_de_sync_checksum() {
     let mut data = Vec::new();
     // Magic 2 (Sync)
