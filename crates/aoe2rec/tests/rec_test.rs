@@ -55,9 +55,7 @@ fn test_parse_de_sync_player_stats() {
             assert!(cs.player_stats[0].displayable_objects > 0);
             assert!(cs.player_stats[1].displayable_objects > 0);
 
-            let current_time = cs
-                .current_time_ms
-                .expect("DE sync should have current_time_ms");
+            let current_time = cs.current_time_ms.expect("DE sync should have current_time_ms");
             assert!(current_time >= last_time);
             last_time = current_time;
 
@@ -69,6 +67,7 @@ fn test_parse_de_sync_player_stats() {
 
     assert_eq!(checksum_count, 352);
 }
+
 
 #[test]
 fn it_parses_recs_with_ai_at_fast_speed() {
