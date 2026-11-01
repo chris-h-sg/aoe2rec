@@ -7,14 +7,13 @@ use crate::{
 use ai::{AIFile, AIInfo};
 use binrw::io::{BufReader, Cursor};
 use binrw::{binrw, BinReaderExt};
-use map::MapInfo;
+pub use map::MapInfo;
 use serde::Serialize;
 
 pub fn decompress(header_data: Vec<u8>) -> RecHeader {
     let (header, _) = yazi::decompress(&header_data, yazi::Format::Raw).unwrap();
     let mut hreader = BufReader::new(Cursor::new(header));
-    let parsed_header: RecHeader = hreader.read_le().unwrap();
-    return parsed_header;
+    hreader.read_le().unwrap()
 }
 
 #[binrw]
@@ -31,11 +30,22 @@ pub struct RecHeader {
     pub interval_version: [u16; 2],
     #[br(args(version_major))]
     pub game_settings: GameSettings,
+    #[br(args(game_settings.speed, game_settings.n_players))]
     pub ai_config: AIConfig,
     pub replay: Replay,
     pub map_info: MapInfo,
-    #[br(args(replay.num_players, version_major, map_info.size_x, map_info.size_y))]
+    #[br(args(replay.num_players, version_major, build, map_info.size_x, map_info.size_y))]
     pub initial: Initial,
+}
+
+impl RecHeader {
+    pub fn players(&self) -> &Vec<Player> {
+        &self.game_settings.players
+    }
+
+    pub fn save_version(&self) -> String {
+        format!("{}.{}", self.version_major, self.version_minor)
+    }
 }
 
 #[binrw]
@@ -292,9 +302,10 @@ pub struct GameSettings {
 
 #[binrw]
 #[derive(Serialize, Debug)]
+#[br(import(speed: f32, n_players: u32))]
 pub enum AIConfig {
     #[br(magic = 1u32)]
-    WithAI(AIInfo),
+    WithAI(#[br(args(speed, n_players))] AIInfo),
     #[br(magic = 0u32)]
     WithoutAI {},
 }
@@ -353,7 +364,7 @@ pub struct Player {
     pub ai_civ_name_index: u8,
     pub ai_name: DeString,
     #[br(if(major >= 66))]
-    pub censored_name: DeString,
+    pub censored_name: Option<DeString>,
     pub name: DeString,
     pub player_type: u32,
     pub profile_id: i32,
@@ -364,9 +375,9 @@ pub struct Player {
     pub unknown_handicap: [u8; 4],
     pub handicap: i32,
     #[br(if(major >= 64))]
-    pub unknown_de_64_19661: u32,
+    pub unknown_de_64_19661: Option<u32>,
     #[br(if(major >= 67))]
-    pub unknown_de_67_2: DeString,
+    pub unknown_de_67_2: Option<DeString>,
 }
 
 #[binrw]
@@ -386,12 +397,12 @@ pub struct EmptySlot {
     pub i2: u32,
     pub a4: [u8; 8],
     #[br(if(major >= 64))]
-    pub unknown_de_64_19661: u32,
+    pub unknown_de_64_19661: Option<u32>,
 }
 
 #[binrw]
 #[derive(Serialize, Debug)]
-#[br(import(num_players: u8, major: u16, map_size_x: u32, map_size_y: u32))]
+#[br(import(num_players: u8, major: u16, build: u32, map_size_x: u32, map_size_y: u32))]
 pub struct Initial {
     pub restore_time: u32,
     pub num_particles: u32,
@@ -400,7 +411,7 @@ pub struct Initial {
     pub particles: Vec<u8>,
     pub identifier: u32,
     #[serde(skip_serializing)]
-    #[br(count = 1, args { inner: (num_players,major) })]
+    #[br(count = 1, args { inner: (num_players, major, build) })]
     pub players: Vec<PlayerInit>,
     #[serde(skip_serializing)]
     pub unknown1: [u8; 21],
@@ -442,11 +453,13 @@ pub struct InnerUnknownPlayerStruct2 {
 
 #[binrw]
 #[derive(Serialize, Debug)]
-#[br(import(major: u16))]
+#[br(import(major: u16, build: u32))]
 pub struct InnerUnknownPlayerStruct {
     pub unknown_type: u16,
     pub unknown1: DeString,
     pub unknown2: DeString,
+    #[br(if(build >= 185000))]
+    pub unknown_68_9: Option<DeString>,
     pub unknown3: [u16; 16],
     #[br(if(major >= 66))]
     pub unknown5: InnerUnknownPlayerStruct2,
@@ -460,20 +473,20 @@ pub struct InnerUnknownPlayerStruct {
 
 #[binrw]
 #[derive(Serialize, Debug)]
-#[br(import(major: u16))]
+#[br(import(major: u16, build: u32))]
 pub struct UnknownPlayerStruct {
     pub sub_count: u16,
     pub unknown1: [u32; 2],
     pub unknown2: [u8; 5],
     #[br(if(major < 66))]
     pub unknown3: [u8; 5],
-    #[br(count=sub_count, args { inner: (major,) })]
+    #[br(count=sub_count, args { inner: (major, build) })]
     pub unknown_inner: Vec<InnerUnknownPlayerStruct>,
 }
 
 #[binrw]
 #[derive(Serialize, Debug)]
-#[br(import(num_players: u8, major: u16))]
+#[br(import(num_players: u8, major: u16, build: u32))]
 pub struct PlayerInit {
     pub player_type: u8,
     #[serde(skip_serializing)]
@@ -523,7 +536,7 @@ pub struct PlayerInit {
     #[br(count = 197)]
     pub unknown6: Vec<u8>,
     #[serde(skip_serializing)]
-    #[br(args(major))]
+    #[br(args(major, build))]
     pub unknown_struct: UnknownPlayerStruct,
     pub dev: [u32; 20],  // TODO: Finish implementing
     pub dev1: [u32; 20], // TODO: Finish implementing
@@ -550,7 +563,7 @@ pub struct Location {
 }
 
 #[binrw::parser(reader, endian)]
-fn parse_initial_tail(
+pub(crate) fn parse_initial_tail(
     num_players: u8,
     map_size_x: u32,
     map_size_y: u32,
@@ -677,6 +690,9 @@ fn parse_object_instance_at(
         return None;
     }
     let object_type_id = u16::from_le_bytes([rest[cursor + 2], rest[cursor + 3]]);
+    if object_type_id == 0 {
+        return None;
+    }
 
     let object_id = u32::from_le_bytes([
         rest[cursor + 18],
@@ -684,7 +700,7 @@ fn parse_object_instance_at(
         rest[cursor + 20],
         rest[cursor + 21],
     ]);
-    if object_id == 0 || object_id > 5_000_000 {
+    if object_id > 5_000_000 {
         return None;
     }
 
