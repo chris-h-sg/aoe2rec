@@ -148,6 +148,34 @@ fn typed_chapter(chapter: &Chapter) -> TypedChapter<'_> {
 
 impl Savegame {
     /// Returns this recording in the typed format described in [`crate::typed`].
+    ///
+    /// ```
+    /// use aoe2rec::actions::ActionData;
+    /// use aoe2rec::typed::{TypedAction, TypedOperation};
+    /// use aoe2rec::Savegame;
+    /// use std::path::Path;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let save = Savegame::from_file(Path::new("replay-ai-fast.aoe2record"))?;
+    /// let typed = save.get_typed();
+    ///
+    /// for op in typed.operations() {
+    ///     if let TypedOperation::Action { action_data, .. } = op {
+    ///         match action_data {
+    ///             TypedAction::Build { building_type_id, x, y, .. } => {
+    ///                 println!("Build {building_type_id} at {x}, {y}");
+    ///             }
+    ///             // Every other action is the existing ActionData, unchanged.
+    ///             TypedAction::Other(ActionData::Resign { player_id, .. }) => {
+    ///                 println!("Player {player_id} resigned");
+    ///             }
+    ///             _ => {}
+    ///         }
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_typed(&self) -> TypedSavegame<'_> {
         TypedSavegame {
             chapters: self.chapters.iter().map(typed_chapter).collect(),
