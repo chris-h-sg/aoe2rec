@@ -2,6 +2,7 @@ pub mod actions;
 pub mod header;
 pub mod minimal;
 pub mod summary;
+pub mod typed;
 
 use binrw::helpers::until_eof;
 use binrw::io::{BufReader, Cursor, SeekFrom, TakeSeekExt};

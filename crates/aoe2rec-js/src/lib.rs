@@ -23,6 +23,15 @@ pub fn parse_rec(buffer: js_sys::ArrayBuffer) -> JsValue {
 }
 
 #[wasm_bindgen]
+pub fn parse_rec_typed(buffer: js_sys::ArrayBuffer) -> JsValue {
+    utils::set_panic_hook();
+
+    let input_rec = Uint8Array::new(&buffer).to_vec();
+    let rec = Savegame::from_bytes(Bytes::from(input_rec)).unwrap();
+    serde_wasm_bindgen::to_value(&rec.get_typed()).unwrap()
+}
+
+#[wasm_bindgen]
 pub fn parse_rec_summary(buffer: js_sys::ArrayBuffer) -> SavegameSummary {
     utils::set_panic_hook();
 
