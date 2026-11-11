@@ -219,6 +219,8 @@ struct LobbySettings {
     u32 unknown4;
     u32 unknown5;
     u32 unknown6;
+    if (unknown5 > 0)
+    DeStringArray xs_files[100];
     u8 guid[16];
     DeString lobby_name;
     u8 unknown7[8];

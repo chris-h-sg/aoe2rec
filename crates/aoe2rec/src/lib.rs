@@ -792,3 +792,17 @@ fn write_len_and_string(strings: &Vec<DeString>) -> BinResult<()> {
     writer.write_type(&1u32, endian)?;
     Ok(())
 }
+
+#[binrw::parser(reader, endian)]
+fn read_opt_strings() -> BinResult<Option<Vec<DeString>>> {
+    let strings = read_strings_of_length(reader, endian, ())?;
+    Ok(Some(strings))
+}
+
+#[binrw::writer(writer, endian)]
+fn write_opt_strings(strings: &Option<Vec<DeString>>) -> BinResult<()> {
+    if let Some(strings) = strings {
+        write_len_and_string(strings, writer, endian, ())?;
+    }
+    Ok(())
+}

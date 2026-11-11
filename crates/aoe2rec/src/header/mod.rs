@@ -2,7 +2,8 @@ mod ai;
 mod map;
 
 use crate::{
-    read_strings_of_length, write_len_and_string, Bool, DeString, LenString16, MyNullString,
+    read_opt_strings, read_strings_of_length, write_len_and_string, write_opt_strings, Bool,
+    DeString, LenString16, MyNullString,
 };
 use ai::{AIFile, AIInfo};
 use binrw::io::{BufReader, Cursor};
@@ -245,6 +246,10 @@ pub struct GameSettings {
     pub unknown5: u32, // 25.02
     #[serde(skip_serializing)]
     pub unknown6: u32, // 25.02
+    #[serde(skip_serializing)]
+    #[br(if(unknown5 > 0), parse_with = read_opt_strings)]
+    #[bw(if(*unknown5 > 0), write_with = write_opt_strings)]
+    pub xs_files: Option<Vec<DeString>>,
     pub guid: [u8; 16],
     pub lobby_name: DeString,
     #[serde(skip_serializing)]
